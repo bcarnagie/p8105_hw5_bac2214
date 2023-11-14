@@ -88,7 +88,7 @@ The plot shows that Tulsa has the lowest proportion of unsolved homicides while 
 
 
 ### Question 2
-```{r}
+```{r, message=FALSE}
 
 file_names = list.files(path = "data/question 2", pattern = ".csv", full.names = TRUE)
 
@@ -124,35 +124,35 @@ The observations for the experimental group tend to be higher over the weeks com
 ```{r}
 
 # Set design elements
-n <- 30
-sigma <- 5
-alpha <- 0.05
-true_mu_values <- c(0, 1, 2, 3, 4, 5, 6)
-num_simulations <- 5000
+n = 30
+sigma = 5
+alpha = 0.05
+true_mu_values = c(0, 1, 2, 3, 4, 5, 6)
+num_simulations = 5000
 
 # Initialize data frames to store results
-results_df <- data.frame(
-  True_mu = numeric(num_simulations),
-  Estimated_mu = numeric(num_simulations),
-  Null_Rejected = logical(num_simulations)
+results_df = 
+  data.frame(
+    True_mu = numeric(num_simulations),
+    Estimated_mu = numeric(num_simulations),
+    Null_Rejected = logical(num_simulations)
 )
 
-# Set the number of CPU cores to use for parallel processing
-num_cores <- detectCores()
 
-# Create a cluster for parallel processing
-cl <- makeCluster(num_cores)
+# I saw online that parallel processing can make this simulation run faster b/c it took a long time to run on my laptop. 
+num_cores = detectCores()
 
-# Export required packages to the parallel workers
+cl = makeCluster(num_cores)
+
 clusterEvalQ(cl, {
   library(dplyr)
   library(broom)
 })
 
-# Parallelize the simulation
+
 clusterExport(cl, c("n", "sigma", "alpha", "true_mu_values", "num_simulations"))
 results_list <- parLapply(cl, true_mu_values, function(true_mu) {
-  set.seed(123)  # For reproducibility
+  set.seed(123) 
   results <- data.frame(
     True_mu = numeric(num_simulations),
     Estimated_mu = numeric(num_simulations),
@@ -168,10 +168,8 @@ results_list <- parLapply(cl, true_mu_values, function(true_mu) {
   return(results)
 })
 
-# Combine results from parallel processing
 results_df <- do.call(rbind, results_list)
 
-# Calculate power and average estimates
 power_df <- results_df %>%
   group_by(True_mu) %>%
   summarize(
@@ -179,7 +177,6 @@ power_df <- results_df %>%
     Avg_Estimated_mu = mean(Estimated_mu),
     Avg_Estimated_mu_Rejected = mean(Estimated_mu[Null_Rejected])
   )
-
 
 ggplot(power_df, aes(x = True_mu, y = Power)) +
   geom_line() +
