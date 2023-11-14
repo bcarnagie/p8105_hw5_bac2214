@@ -14,6 +14,9 @@ library(dplyr)
 library(purrr)
 library(broom)
 library(ggplot2)
+library(readr)
+library(stringr)
+library(viridis)
 
 homicide_df = read_csv("data/homicide-data.csv") |> 
   mutate(
@@ -78,3 +81,36 @@ ggplot(output, aes(x = reorder(city_state, -estimated_proportion), y = estimated
 ```
 
 The plot shows that Tulsa has the lowest proportion of unsolved homicides while Chicago has the highest proportion of unsolved homicides.
+
+
+### Question 2
+```{r}
+
+file_names = list.files(path = "data/question 2", pattern = ".csv", full.names = TRUE)
+
+tidy_study_data = lapply(file_names, function(file) {
+  
+  df = read.csv(file)  
+  subject_id = str_extract(basename(file), "(con|exp)_\\d+")
+  arm = ifelse(grepl("con_", basename(file)), "control", "experimental")
+  
+  df = df |> 
+    pivot_longer(cols = c(week_1, week_2, week_3, week_4, week_5, week_6, week_7, week_8), 
+                 names_to = "week", values_to = "observation") |> 
+    mutate(
+      subject = subject_id,
+      arm = arm,
+      week = as.numeric(gsub("week_", "", week))
+    )
+  return(df)
+  
+}) |> bind_rows() |> select(week, arm, subject, observation)
+
+study_data_plot = ggplot(tidy_study_data, aes(x = week, y = observation, group = subject, color = arm)) +
+  geom_line() +
+  labs(x = "Week", y = "Observation") +
+  ggtitle("Study Observations by Week") 
+
+```
+
+The observations for the experimental group tend to be higher over the weeks compared to the control group. However, there is a considerable variation within both groups, and some subjects in the control group have observations that overlap with those in the experimental group.
