@@ -13,7 +13,7 @@ library(broom)
 library(ggplot2)
 library(readr)
 library(stringr)
-library(viridis)
+library(parallel)  
 ```
 
 ### Question 1
@@ -94,7 +94,7 @@ file_names = list.files(path = "data/question 2", pattern = ".csv", full.names =
 
 tidy_study_data = lapply(file_names, function(file) {
   
-  df = read.csv(file)  
+  df = read_csv(file)  
   subject_id = str_extract(basename(file), "(con|exp)_\\d+")
   arm = ifelse(grepl("con_", basename(file)), "control", "experimental")
   
@@ -118,3 +118,88 @@ study_data_plot = ggplot(tidy_study_data, aes(x = week, y = observation, group =
 ```
 
 The observations for the experimental group tend to be higher over the weeks compared to the control group. However, there is a considerable variation within both groups, and some subjects in the control group have observations that overlap with those in the experimental group.
+
+
+### Question 3
+```{r}
+
+# Set design elements
+n <- 30
+sigma <- 5
+alpha <- 0.05
+true_mu_values <- c(0, 1, 2, 3, 4, 5, 6)
+num_simulations <- 5000
+
+# Initialize data frames to store results
+results_df <- data.frame(
+  True_mu = numeric(num_simulations),
+  Estimated_mu = numeric(num_simulations),
+  Null_Rejected = logical(num_simulations)
+)
+
+# Set the number of CPU cores to use for parallel processing
+num_cores <- detectCores()
+
+# Create a cluster for parallel processing
+cl <- makeCluster(num_cores)
+
+# Export required packages to the parallel workers
+clusterEvalQ(cl, {
+  library(dplyr)
+  library(broom)
+})
+
+# Parallelize the simulation
+clusterExport(cl, c("n", "sigma", "alpha", "true_mu_values", "num_simulations"))
+results_list <- parLapply(cl, true_mu_values, function(true_mu) {
+  set.seed(123)  # For reproducibility
+  results <- data.frame(
+    True_mu = numeric(num_simulations),
+    Estimated_mu = numeric(num_simulations),
+    Null_Rejected = logical(num_simulations)
+  )
+  for (i in 1:num_simulations) {
+    data <- rnorm(n, mean = true_mu, sd = sigma)
+    t_test_result <- t.test(data, mu = 0, alternative = "two.sided")
+    results[i, "True_mu"] <- true_mu
+    results[i, "Estimated_mu"] <- tidy(t_test_result)$estimate[1]
+    results[i, "Null_Rejected"] <- t_test_result$p.value < alpha
+  }
+  return(results)
+})
+
+# Combine results from parallel processing
+results_df <- do.call(rbind, results_list)
+
+# Calculate power and average estimates
+power_df <- results_df %>%
+  group_by(True_mu) %>%
+  summarize(
+    Power = mean(Null_Rejected),
+    Avg_Estimated_mu = mean(Estimated_mu),
+    Avg_Estimated_mu_Rejected = mean(Estimated_mu[Null_Rejected])
+  )
+
+
+ggplot(power_df, aes(x = True_mu, y = Power)) +
+  geom_line() +
+  labs(x = "True μ", y = "Power") +
+  ggtitle("Power vs. True μ")
+```
+
+The graph has a positive correlation between true mu and power, indicating that as the true mean deviates from the null hypothesis value (0 in this case), the power of the test increases. This means that for larger effect sizes, the test is more likely to correctly reject the null hypothesis. However, once the true mu approaches 4, the power standardizes and no longer increases as it is extremely close to 1.
+
+
+```{r}
+ggplot(power_df, aes(x = True_mu, y = Avg_Estimated_mu)) +
+  geom_line() +
+  labs(x = "True μ", y = "Avg Estimated μ") +
+  ggtitle("Average Estimated μ vs. True μ") +
+  geom_line(data = power_df[power_df$Power > 0, ], aes(x = True_mu, y = Avg_Estimated_mu_Rejected), color = "purple")
+```
+
+The sample average of μ̂ (the average we get from our tests) when we reject the null hypothesis is not always equal to the true value of μ (the real average we're trying to measure). This is because when we do lots of tests, sometimes we get a higher average just by chance. And when that happens, we're more likely
+to see a difference that is not zero and reject the null hypothesis.
+
+So, the times when we reject the null hypothesis might include some of these chance results. Because these chance results tend to be higher than the true average, when we look at the average of μ̂ from these tests, it's an overestimate. This is why the average of μ̂ from the tests where we reject the null isn't quite the same as the true average μ; it's an exaggerated version of the truth.
+
