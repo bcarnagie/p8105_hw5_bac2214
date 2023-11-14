@@ -5,10 +5,7 @@ date: "2023-11-12"
 output: github_document
 ---
 
-### Question 1
-
-```{r setup, include=FALSE}
-
+```{r, echo=FALSE, message=FALSE}
 library(tidyverse)
 library(dplyr)
 library(purrr)
@@ -17,6 +14,12 @@ library(ggplot2)
 library(readr)
 library(stringr)
 library(viridis)
+```
+
+### Question 1
+
+In this code chunk, I read in the csv file and used the `prop.test` function to calculate the estimated proportion and CI's for Baltimore, MD.
+```{r}
 
 homicide_df = read_csv("data/homicide-data.csv") |> 
   mutate(
@@ -42,10 +45,11 @@ baltimore_prop_test =
     conf_int = paste(conf.low, conf.high, sep = ",")) |> 
   select(est_prop,conf_int)
 ``` 
-The raw data contains details about the victim of a homicide including their name, race, age, and sex. There are also details regarding the location down to the latitude and longitude as well as the disposition of the person who committed the homicide.
+
+After observing the raw dataset, I noticed that it contains details about the victim of a homicide including their name, race, age, and sex. There are also details regarding the location down to the latitude and longitude as well as the disposition of the person who committed the homicide.
 
 
-I am now repeating the steps for each city and state value in the homicides_by_city dataframe.
+I am now repeating the steps for each city and state value in the homicides_by_city dataframe using a function and the purrr package.
 ```{r}
 
 df_to_list = split(homicides_by_city, seq(nrow(homicides_by_city)))
